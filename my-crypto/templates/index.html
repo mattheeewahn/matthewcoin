@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MATTHEW Coin (MTW)</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #f4f4f4; color: #222; }
+
+header {
+  background: #1a1a2e;
+  color: white;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+header h1 { font-size: 1.2rem; }
+header span { font-size: 0.85rem; color: #aaa; }
+#header-addr { margin-left: auto; font-size: 0.8rem; color: #ccc; font-family: monospace; }
+
+.container { max-width: 900px; margin: 0 auto; padding: 20px 16px; }
+
+/* 탭 */
+.tabs { display: flex; gap: 2px; margin-bottom: 16px; border-bottom: 2px solid #ddd; }
+.tab-btn {
+  padding: 8px 20px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: #555;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+}
+.tab-btn.active { color: #1a1a2e; border-bottom-color: #1a1a2e; font-weight: bold; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* 카드 */
+.card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.card h2 { font-size: 1rem; margin-bottom: 10px; color: #333; }
+
+/* 지갑 없을 때 */
+#no-wallet { text-align: center; padding: 40px 0; }
+#no-wallet p { color: #666; margin-bottom: 20px; }
+
+/* 잔액 */
+#balance-display { font-size: 2rem; font-weight: bold; color: #1a6e1a; }
+
+/* 입력 */
+label { display: block; font-size: 0.85rem; color: #555; margin-bottom: 4px; margin-top: 10px; }
+input[type=text], input[type=number], textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-family: monospace;
+}
+textarea { resize: vertical; }
+
+/* 버튼 */
+button {
+  padding: 8px 18px;
+  border: 1px solid #999;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+button:hover { background: #f0f0f0; }
+button.primary { background: #1a1a2e; color: white; border-color: #1a1a2e; }
+button.primary:hover { background: #2d2d4e; }
+button.danger { background: #c0392b; color: white; border-color: #c0392b; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+/* 메시지 */
+.msg { font-size: 0.85rem; margin-top: 8px; padding: 6px 10px; border-radius: 4px; }
+.msg.ok  { background: #d4edda; color: #155724; }
+.msg.err { background: #f8d7da; color: #721c24; }
+.msg.info { background: #d1ecf1; color: #0c5460; }
+
+/* 테이블 */
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th { background: #f0f0f0; padding: 7px 10px; text-align: left; border-bottom: 1px solid #ddd; }
+td { padding: 6px 10px; border-bottom: 1px solid #eee; font-family: monospace; }
+tr:hover td { background: #fafafa; }
+
+/* 채굴 로그 */
+#mine-log {
+  background: #111;
+  color: #0f0;
+  font-family: monospace;
+  font-size: 0.8rem;
+  padding: 10px;
+  height: 200px;
+  overflow-y: auto;
+  border-radius: 4px;
+  white-space: pre-wrap;
+}
+
+/* 주소 행 */
+.addr-row { display: flex; gap: 6px; align-items: center; }
+.addr-row input { flex: 1; }
+
+/* 로딩 */
+.spinner { display: inline-block; width: 14px; height: 14px;
+  border: 2px solid #ccc; border-top-color: #333;
+  border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 반응형 */
+@media (max-width: 600px) {
+  #balance-display { font-size: 1.5rem; }
+  .tab-btn { padding: 8px 12px; font-size: 0.85rem; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>MATTHEW Coin</h1>
+    <span>MTW</span>
+  </div>
+  <div id="header-addr"></div>
+</header>
+
+<div class="container">
+
+  <!-- 지갑 없을 때 -->
+  <div id="no-wallet">
+    <p>지갑이 없습니다. 새로 만들거나 기존 지갑 파일을 불러오세요.</p>
+    <div class="btn-row" style="justify-content:center">
+      <button class="primary" onclick="createWallet()">새 지갑 만들기</button>
+      <button onclick="document.getElementById('pem-file').click()">지갑 불러오기 (.pem)</button>
+      <input type="file" id="pem-file" accept=".pem" style="display:none" onchange="loadWalletFile(event)">
+    </div>
+    <div id="no-wallet-msg"></div>
+  </div>
+
+  <!-- 지갑 있을 때 -->
+  <div id="main-ui" style="display:none">
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="showTab('wallet')">지갑</button>
+      <button class="tab-btn" onclick="showTab('mine')">채굴</button>
+      <button class="tab-btn" onclick="showTab('send')">전송</button>
+      <button class="tab-btn" onclick="showTab('chain')">블록체인</button>
+    </div>
+
+    <!-- 지갑 탭 -->
+    <div id="tab-wallet" class="tab-panel active">
+      <div class="card">
+        <h2>잔액</h2>
+        <div id="balance-display">0 MTW</div>
+      </div>
+      <div class="card">
+        <h2>내 주소</h2>
+        <div class="addr-row">
+          <input type="text" id="my-address" readonly>
+          <button onclick="copyAddr()">복사</button>
+        </div>
+        <label>공개키</label>
+        <textarea id="my-pubkey" rows="2" readonly></textarea>
+        <div class="btn-row">
+          <button onclick="downloadWallet()">지갑 파일 다운로드 (.pem)</button>
+          <button class="danger" onclick="forgetWallet()">지갑 삭제 (로그아웃)</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>트랜잭션 내역</h2>
+        <table>
+          <thead><tr><th>방향</th><th>금액</th><th>상대 주소</th><th>블록</th></tr></thead>
+          <tbody id="tx-history"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 채굴 탭 -->
+    <div id="tab-mine" class="tab-panel">
+      <div class="card">
+        <h2>채굴</h2>
+        <p style="color:#666;font-size:0.85rem;margin-bottom:10px">
+          채굴은 브라우저에서 직접 수행됩니다. 블록을 찾으면 서버에 제출합니다.
+        </p>
+        <table style="width:auto;margin-bottom:12px">
+          <tr><td>난이도</td><td id="info-diff" style="padding-left:16px;font-weight:bold"></td></tr>
+          <tr><td>블록 보상</td><td id="info-reward" style="padding-left:16px;font-weight:bold"></td></tr>
+          <tr><td>채굴한 블록</td><td id="mine-blocks" style="padding-left:16px;font-weight:bold;color:#1a6e1a">0</td></tr>
+          <tr><td>획득 MTW</td><td id="mine-earned" style="padding-left:16px;font-weight:bold;color:#1a6e1a">0</td></tr>
+          <tr><td>해시 속도</td><td id="mine-hashrate" style="padding-left:16px">-</td></tr>
+        </table>
+        <div class="btn-row">
+          <button class="primary" id="btn-mine" onclick="toggleMine()">채굴 시작</button>
+        </div>
+        <div id="mine-status" class="msg info" style="display:none"></div>
+      </div>
+      <div class="card">
+        <h2>로그</h2>
+        <div id="mine-log"></div>
+      </div>
+    </div>
+
+    <!-- 전송 탭 -->
+    <div id="tab-send" class="tab-panel">
+      <div class="card">
+        <h2>MTW 전송</h2>
+        <p style="color:#666;font-size:0.85rem">전송 후 채굴이 되어야 블록에 기록됩니다.</p>
+        <label>받는 주소</label>
+        <input type="text" id="send-to" placeholder="MTW...">
+        <label>금액 (MTW)</label>
+        <input type="number" id="send-amt" placeholder="0" min="0" step="any">
+        <p style="font-size:0.8rem;color:#888;margin-top:6px" id="send-bal-info"></p>
+        <div class="btn-row">
+          <button class="primary" onclick="doSend()">전송</button>
+        </div>
+        <div id="send-msg"></div>
+      </div>
+    </div>
+
+    <!-- 블록체인 탭 -->
+    <div id="tab-chain" class="tab-panel">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span id="chain-info" style="font-size:0.85rem;color:#555"></span>
+          <button onclick="loadChain()">새로고침</button>
+        </div>
+      </div>
+      <div class="card" style="overflow-x:auto">
+        <table>
+          <thead><tr><th>블록</th><th>해시</th><th>TX</th><th>Nonce</th><th>시간</th></tr></thead>
+          <tbody id="chain-table"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /main-ui -->
+</div><!-- /container -->
+
+<script src="/static/app.js"></script>
+</body>
+</html>
