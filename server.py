@@ -113,18 +113,22 @@ def api_mine_work():
     transactions.append(reward_tx)
     ts = time.time()
 
-    # JS가 Python json.dumps를 재현하기 어려우므로
-    # 서버가 직접 직렬화 문자열의 고정 부분을 만들어 내려줌
-    # JS는 nonce만 바꿔서 해시 계산
     base_block = {
         "index": bc.last_block.index + 1,
         "timestamp": ts,
         "transactions": transactions,
         "previous_hash": bc.last_block.hash,
     }
-    # nonce=0 일 때의 직렬화 문자열 (nonce 부분만 교체하면 됨)
-    import re
-    sample = json.dumps({**base_block, "nonce": 0}, sort_keys=True)
+
+    # JS가 nonce만 바꿔서 해시를 계산할 수 있도록
+    # prefix + str(nonce) + suffix 형태로 분리해서 내려줌
+    # json.dumps(sort_keys=True) 결과에서 "nonce" 키 위치를 찾아 분리
+    full = json.dumps({**base_block, "nonce": 0}, sort_keys=True)
+    # "nonce": 0 의 위치를 찾아서 앞/뒤로 분리
+    marker = '"nonce": 0'
+    idx = full.index(marker)
+    prefix = full[:idx + len('"nonce": ')]   # '..."nonce": ' 까지
+    suffix = full[idx + len(marker):]         # 0 이후 부분
 
     return jsonify({
         "index": bc.last_block.index + 1,
@@ -132,7 +136,8 @@ def api_mine_work():
         "previous_hash": bc.last_block.hash,
         "difficulty": bc.DIFFICULTY,
         "timestamp": ts,
-        "sample_json": sample,   # JS가 nonce 부분만 교체해서 사용
+        "hash_prefix": prefix,   # JS: prefix + nonce + suffix 로 해시 계산
+        "hash_suffix": suffix,
     })
 
 

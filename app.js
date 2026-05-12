@@ -208,20 +208,16 @@ async function mineLoop() {
   }
 }
 
-// PoW — sample_json에서 nonce 부분만 교체해서 해시 계산
-// Python json.dumps 재현 불필요 — 서버가 이미 직렬화된 문자열 제공
+// PoW — prefix + nonce + suffix 로 해시 계산
+// 서버가 Python json.dumps 결과를 nonce 위치에서 잘라서 내려줌
 async function proofOfWork(work) {
   const target = "0".repeat(work.difficulty);
+  const prefix = work.hash_prefix;
+  const suffix = work.hash_suffix;
   let nonce = 0;
-  // "nonce": 0 → "nonce": 1234 로 교체
-  // sample_json 예: {"index": 1, "nonce": 0, "previous_hash": "...", ...}
-  const noncePrefix = '"nonce": ';
 
   while (true) {
-    const blockData = work.sample_json.replace(
-      noncePrefix + "0",
-      noncePrefix + nonce
-    );
+    const blockData = prefix + nonce + suffix;
     const hash = sha256(blockData);
 
     if (hash.startsWith(target)) {
