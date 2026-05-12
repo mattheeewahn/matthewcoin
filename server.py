@@ -147,11 +147,30 @@ def api_mine():
     block_data = request.get_json().get("block")
     if not block_data:
         abort(400, "block 없음")
+
     block = Block.from_dict(block_data)
+    recomputed = block.compute_hash()
+
+    # 디버그: 불일치 원인 출력
+    if block.hash != recomputed:
+        import sys
+        print(f"[DEBUG] 제출된 hash:    {block.hash}", file=sys.stderr)
+        print(f"[DEBUG] 재계산된 hash:  {recomputed}", file=sys.stderr)
+        print(f"[DEBUG] index={block.index} nonce={block.nonce} timestamp={block.timestamp}", file=sys.stderr)
+        print(f"[DEBUG] transactions={json.dumps(block.transactions)}", file=sys.stderr)
+        # 재계산에 쓰인 문자열
+        block_str = json.dumps({
+            "index": block.index,
+            "timestamp": block.timestamp,
+            "transactions": block.transactions,
+            "previous_hash": block.previous_hash,
+            "nonce": block.nonce,
+        }, sort_keys=True)
+        print(f"[DEBUG] 재계산 문자열: {block_str[:120]}", file=sys.stderr)
+        abort(400, f"해시 불일치 | 제출={block.hash[:16]} | 재계산={recomputed[:16]}")
+
     if block.previous_hash != bc.last_block.hash:
         abort(400, "이전 해시 불일치 — 다시 시도하세요")
-    if block.hash != block.compute_hash():
-        abort(400, "해시 불일치")
     if not block.hash.startswith("0" * bc.DIFFICULTY):
         abort(400, "작업 증명 부족")
     bc.chain.append(block)
