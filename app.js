@@ -209,18 +209,29 @@ async function mineLoop() {
 }
 
 // PoW — prefix + nonce + suffix 로 해시 계산
-// 서버가 Python json.dumps 결과를 nonce 위치에서 잘라서 내려줌
 async function proofOfWork(work) {
   const target = "0".repeat(work.difficulty);
   const prefix = work.hash_prefix;
   const suffix = work.hash_suffix;
   let nonce = 0;
 
+  // 첫 번째 시도 디버그 출력
+  const debugData = prefix + "0" + suffix;
+  const debugHash = sha256(debugData);
+  console.log("[PoW debug] prefix:", prefix);
+  console.log("[PoW debug] suffix:", suffix);
+  console.log("[PoW debug] nonce=0 string:", debugData);
+  console.log("[PoW debug] nonce=0 hash:", debugHash);
+  mineLog(`[DEBUG] nonce=0 string: ${debugData.slice(0, 80)}...`);
+  mineLog(`[DEBUG] nonce=0 hash: ${debugHash}`);
+
   while (true) {
     const blockData = prefix + nonce + suffix;
     const hash = sha256(blockData);
 
     if (hash.startsWith(target)) {
+      mineLog(`[DEBUG] 찾은 nonce=${nonce} hash=${hash}`);
+      mineLog(`[DEBUG] 제출 blockData: ${blockData.slice(0, 80)}...`);
       return {
         index: work.index,
         timestamp: work.timestamp,
