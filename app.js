@@ -180,11 +180,15 @@ async function mineLoop() {
 
       if (!mining) break;  // 중지됐으면 제출 안 함
 
-      // 3. 서버에 제출
+      // 3. 서버에 제출 (hash_prefix, hash_suffix 도 같이 보내서 서버가 동일 방식으로 검증)
       const sres = await fetch("/api/mine", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ block: result }),
+        body: JSON.stringify({
+          block: result,
+          hash_prefix: work.hash_prefix,
+          hash_suffix: work.hash_suffix,
+        }),
       });
 
       if (sres.ok) {
@@ -215,23 +219,11 @@ async function proofOfWork(work) {
   const suffix = work.hash_suffix;
   let nonce = 0;
 
-  // 첫 번째 시도 디버그 출력
-  const debugData = prefix + "0" + suffix;
-  const debugHash = sha256(debugData);
-  console.log("[PoW debug] prefix:", prefix);
-  console.log("[PoW debug] suffix:", suffix);
-  console.log("[PoW debug] nonce=0 string:", debugData);
-  console.log("[PoW debug] nonce=0 hash:", debugHash);
-  mineLog(`[DEBUG] nonce=0 string: ${debugData.slice(0, 80)}...`);
-  mineLog(`[DEBUG] nonce=0 hash: ${debugHash}`);
-
   while (true) {
     const blockData = prefix + nonce + suffix;
     const hash = sha256(blockData);
 
     if (hash.startsWith(target)) {
-      mineLog(`[DEBUG] 찾은 nonce=${nonce} hash=${hash}`);
-      mineLog(`[DEBUG] 제출 blockData: ${blockData.slice(0, 80)}...`);
       return {
         index: work.index,
         timestamp: work.timestamp,

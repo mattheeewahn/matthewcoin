@@ -144,35 +144,43 @@ def api_mine_work():
 @app.route("/api/mine", methods=["POST"])
 def api_mine():
     """클라이언트가 PoW 완료한 블록 제출 → 검증 후 체인 추가"""
-    block_data = request.get_json().get("block")
+    data = request.get_json()
+    block_data = data.get("block")
     if not block_data:
         abort(400, "block 없음")
 
-    block = Block.from_dict(block_data)
-    recomputed = block.compute_hash()
+    # JS가 보낸 hash 를 prefix+nonce+suffix 로 직접 재계산해서 검증
+    # timestamp 부동소수점 오차 문제를 피하기 위해
+    # 서버도 동일한 방식(prefix+nonce+suffix)으로 검증
+    hash_prefix = data.get("hash_prefix", "")
+    hash_suffix = data.get("hash_suffix", "")
+    submitted_hash = block_data.get("hash", "")
+    nonce = block_data.get("nonce", 0)
 
-    # 디버그: 불일치 원인 출력
-    if block.hash != recomputed:
-        import sys
-        print(f"[DEBUG] 제출된 hash:    {block.hash}", file=sys.stderr)
-        print(f"[DEBUG] 재계산된 hash:  {recomputed}", file=sys.stderr)
-        print(f"[DEBUG] index={block.index} nonce={block.nonce} timestamp={block.timestamp}", file=sys.stderr)
-        print(f"[DEBUG] transactions={json.dumps(block.transactions)}", file=sys.stderr)
-        # 재계산에 쓰인 문자열
-        block_str = json.dumps({
-            "index": block.index,
-            "timestamp": block.timestamp,
-            "transactions": block.transactions,
-            "previous_hash": block.previous_hash,
-            "nonce": block.nonce,
-        }, sort_keys=True)
-        print(f"[DEBUG] 재계산 문자열: {block_str[:120]}", file=sys.stderr)
-        abort(400, f"해시 불일치 | 제출={block.hash[:16]} | 재계산={recomputed[:16]}")
+    if hash_prefix and hash_suffix:
+        # JS와 동일한 방식으로 재계산
+        import hashlib
+        block_str = hash_prefix + str(nonce) + hash_suffix
+        recomputed = hashlib.sha256(block_str.encode()).hexdigest()
+    else:
+        # fallback: Block.compute_hash
+        block = Block.from_dict(block_data)
+        recomputed = block.compute_hash()
 
-    if block.previous_hash != bc.last_block.hash:
-        abort(400, "이전 해시 불일치 — 다시 시도하세요")
-    if not block.hash.startswith("0" * bc.DIFFICULTY):
+    if submitted_hash != recomputed:
+        abort(400, f"해시 불일치 | 제출={submitted_hash[:16]} | 재계산={recomputed[:16]}")
+
+    if not submitted_hash.startswith("0" * bc.DIFFICULTY):
         abort(400, "작업 증명 부족")
+
+    # previous_hash 검증
+    if block_data.get("previous_hash") != bc.last_block.hash:
+        abort(400, "이전 해시 불일치 — 다시 시도하세요")
+
+    # 체인에 추가 (hash 는 JS가 계산한 값 그대로 사용)
+    from blockchain import Block as B
+    block = B.from_dict(block_data)
+    block.hash = submitted_hash  # JS가 계산한 hash 사용
     bc.chain.append(block)
     included = {tx.get("tx_id") for tx in block.transactions}
     bc.pending_transactions = [
